@@ -1,0 +1,10 @@
+body{font-family:Segoe UI,Arial,Helvetica,sans-serif;background:#f7f7f9;color:#222;margin:0;padding:20px}
+.container{max-width:800px;margin:0 auto}
+h1{margin:0 0 12px}
+form{display:flex;gap:8px;margin-bottom:12px}
+form input{flex:1;padding:8px;border:1px solid #ccc;border-radius:4px}
+form button{padding:8px 12px}
+ul#list{list-style:none;padding:0;margin:0}
+li.item{background:#fff;border:1px solid #e6e6e6;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.desc{color:#666;font-size:0.95em;margin-top:6px}
+.actions button{margin-left:8px}

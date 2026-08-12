@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<!--
+  assignment_list.html
+
+  This is a Django TEMPLATE - an HTML file with a little Django
+  magic inside. Before Django sends this page to the browser, it
+  replaces the special tags with real data from the database.
+
+  Layout (top to bottom):
+    1. A heading with the "Add Assignment" button.
+    2. The list of assignments (or a friendly message if empty).
+    3. A popup (modal) with the form to add a new assignment.
+
+  The form is a normal Django form - it posts to this same URL and
+  the view in views.py saves it on the server. JavaScript is only
+  used to open and close the popup.
+
+  (Note: Django reads its tags even inside HTML comments, and its
+  comment shorthand must stay on one line. So every note is short.)
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Assignments</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+            color: #222;
+        }
+        header, main {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        header { padding-bottom: 0; }
+        h1 { font-size: 1.5rem; }
+        h2 { font-size: 1.1rem; }
+        .btn {
+            border: none;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-primary { background: #4f46e5; color: #fff; }
+        .btn-secondary { background: #eef0f2; color: #333; }
+        .assignment-list { list-style: none; margin: 0; padding: 0; }
+        .assignment {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 0.6rem;
+        }
+        .assignment-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .assignment-top h3 { margin: 0; }
+        .meta, .due { color: #666; font-size: 0.85rem; margin: 0.3rem 0 0; }
+        .overdue { color: #b91c1c; font-weight: bold; }
+        .badge {
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+        }
+        .badge--pending { background: #fef3c7; color: #92400e; }
+        .badge--in-progress { background: #dbeafe; color: #1e40af; }
+        .badge--completed { background: #dcfce7; color: #166534; }
+        .empty {
+            background: #fff;
+            border: 1px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+        .empty p { color: #666; }
+        dialog {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 0;
+            width: min(460px, 94vw);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+        .modal-form { padding: 1.2rem; }
+        .modal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .modal-head h2 { margin: 0; }
+        .modal-close {
+            border: none;
+            background: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .field { margin-bottom: 0.9rem; }
+        .field label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.25rem; }
+        .required { color: #dc2626; }
+        .field input, .field select, .field textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font: inherit;
+        }
+        .errorlist { color: #dc2626; font-size: 0.8rem; margin: 0.2rem 0 0; padding: 0; list-style: none; }
+        .modal-foot {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 0.9rem;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============ HEADER with the Add Assignment button ============ -->
+    <header>
+        <h1>My Assignments</h1>
+        <p>Keep track of your assignments and their due dates.</p>
+        {# data-open-modal is our hook: the JavaScript at the bottom finds every button with it. #}
+        <button type="button" class="btn btn-primary" data-open-modal>+ Add Assignment</button>
+    </header>
+
+    <!-- ============ THE LIST OF ASSIGNMENTS ============ -->
+    <main>
+        {# If there are assignments, show them as cards. If the list is empty, show the friendly message. #}
+        {% if assignments %}
+            <h2>Assignments ({{ assignments|length }})</h2>
+            <ul class="assignment-list">
+                {# The for tag loops over the assignments, one at a time; each one is called "assignment". #}
+                {% for assignment in assignments %}
+                    <li class="assignment">
+                        {# The title sits on the left, the status badge on the right. #}
+                        <div class="assignment-top">
+                            <h3>{{ assignment.title }}</h3>
+                            {# slugify turns the status into a CSS class, e.g. "In Progress" -> "in-progress". #}
+                            <span class="badge badge--{{ assignment.status|slugify }}">{{ assignment.status }}</span>
+                        </div>
+
+                        {# Optional fields are shown only if they are filled in. #}
+                        {% if assignment.course %}
+                            <p class="meta">Course: {{ assignment.course }}</p>
+                        {% endif %}
+                        {% if assignment.subject_teacher %}
+                            <p class="meta">Teacher: {{ assignment.subject_teacher }}</p>
+                        {% endif %}
+
+                        {% if assignment.description %}
+                            <p class="description">{{ assignment.description }}</p>
+                        {% endif %}
+
+                        <p class="due">
+                            Due: {{ assignment.due_date }}
+                            {# is_overdue is a @property on the model. #}
+                            {% if assignment.is_overdue %}
+                                <span class="overdue">(Overdue)</span>
+                            {% endif %}
+                        </p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="empty">
+                <p>No assignments yet.</p>
+                <button type="button" class="btn btn-primary" data-open-modal>+ Add Assignment</button>
+            </div>
+        {% endif %}
+    </main>
+
+    <!-- ============ THE MODAL (popup with the form) ============
+         <dialog> is a built-in HTML element for popups. It gives us
+         the dark backdrop and the Escape-key close for free.
+         showModal() opens it, close() closes it. -->
+    <dialog id="add-modal" aria-labelledby="modal-title">
+        {# method="post" sends the form data to this same URL. #}
+        <form method="post" class="modal-form">
+            {# csrf_token is a security tag Django requires on forms that save data. #}
+            {% csrf_token %}
+
+            <div class="modal-head">
+                <h2 id="modal-title">Add Assignment</h2>
+                <button type="button" class="modal-close" data-close-modal aria-label="Close">x</button>
+            </div>
+
+            {# Each field is written out by hand so we control the layout; Django builds the inputs. #}
+            <div class="field">
+                <label for="{{ form.title.id_for_label }}">
+                    Title <span class="required">*</span>
+                </label>
+                {{ form.title }}
+                {# If this field failed validation, Django prints the errors. #}
+                {{ form.title.errors }}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.course.id_for_label }}">Course</label>
+                {{ form.course }}
+                {{ form.course.errors }}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.subject_teacher.id_for_label }}">Subject Teacher</label>
+                {{ form.subject_teacher }}
+                {{ form.subject_teacher.errors }}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.description.id_for_label }}">Description</label>
+                {{ form.description }}
+                {{ form.description.errors }}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.due_date.id_for_label }}">
+                    Due Date <span class="required">*</span>
+                </label>
+                {# The type="date" widget turns this into a date picker. #}
+                {{ form.due_date }}
+                {{ form.due_date.errors }}
+            </div>
+
+            <div class="modal-foot">
+                {# type="button" means "do nothing" - our JavaScript closes the popup. #}
+                <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                {# type="submit" sends the form to Django, which saves it. #}
+                <button type="submit" class="btn btn-primary">Add Assignment</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- ============ A LITTLE JAVASCRIPT ============
+         This only opens and closes the popup. All the saving is
+         still done by Django on the server. -->
+    <script>
+        // Find the popup and every "Add Assignment" button.
+        const modal = document.getElementById('add-modal');
+        const openButtons = document.querySelectorAll('[data-open-modal]');
+
+        // Clicking an "Add Assignment" button opens the popup.
+        openButtons.forEach((button) => {
+            button.addEventListener('click', () => modal.showModal());
+        });
+
+        // The "x" button and the "Cancel" button close the popup.
+        modal.querySelectorAll('[data-close-modal]').forEach((button) => {
+            button.addEventListener('click', () => modal.close());
+        });
+
+        // Clicking the dark area outside the popup also closes it.
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.close();
+            }
+        });
+
+        // If the form was sent back with validation errors, open the
+        // popup again so the student can see what to fix.
+        {% if form.errors %}
+        modal.showModal();
+        {% endif %}
+    </script>
+
+</body>
+</html>

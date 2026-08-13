@@ -28,4 +28,6 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
+    #The simple HTML web page with the add-assignment from and the list of assignments.
+    path("", include("assignments.web_urls")),
 ]

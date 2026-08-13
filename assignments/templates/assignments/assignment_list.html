@@ -45,9 +45,18 @@
             font: inherit;
             font-weight: bold;
             cursor: pointer;
+            text-decoration: none;
         }
         .btn-primary { background: #4f46e5; color: #fff; }
         .btn-secondary { background: #eef0f2; color: #333; }
+        .btn-danger { background: #dc2626; color: #fff; }
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 0.6rem;
+        }
+        .card-actions form { margin: 0; }
         .assignment-list { list-style: none; margin: 0; padding: 0; }
         .assignment {
             background: #fff;
@@ -172,6 +181,21 @@
                                 <span class="overdue">(Overdue)</span>
                             {% endif %}
                         </p>
+                        <div class="card-actions">
+                            {# data-edit-assignment is our hook: clicking it opens the modal in edit mode. #}
+                            <a href="#" class="btn btn-secondary" data-edit-assignment
+                               data-edit-url="{% url 'assignments:assignment_edit' assignment.pk %}"
+                               data-title="{{ assignment.title }}"
+                               data-course="{{ assignment.course }}"
+                               data-subject_teacher="{{ assignment.subject_teacher }}"
+                               data-description="{{ assignment.description }}"
+                               data-due-date="{{ assignment.due_date|date:'Y-m-d' }}">Edit</a>
+                            {# A tiny form so Delete uses POST (a plain link would use GET). #}
+                            <form method="post" action="{% url 'assignments:assignment_delete' assignment.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </div>
                     </li>
                 {% endfor %}
             </ul>
@@ -239,22 +263,55 @@
                 {# type="button" means "do nothing" - our JavaScript closes the popup. #}
                 <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
                 {# type="submit" sends the form to Django, which saves it. #}
-                <button type="submit" class="btn btn-primary">Add Assignment</button>
+                <button type="submit" id="modal-submit" class="btn btn-primary">Add Assignment</button>
             </div>
         </form>
     </dialog>
 
     <!-- ============ A LITTLE JAVASCRIPT ============
-         This only opens and closes the popup. All the saving is
-         still done by Django on the server. -->
+         This only opens/closes the popup and switches it between
+         "Add" and "Edit" modes. All the saving is still done by
+         Django on the server. -->
     <script>
-        // Find the popup and every "Add Assignment" button.
+        // Find the popup and its form parts.
         const modal = document.getElementById('add-modal');
+        const form = modal.querySelector('form');
+        const modalTitle = document.getElementById('modal-title');
+        const submitButton = document.getElementById('modal-submit');
         const openButtons = document.querySelectorAll('[data-open-modal]');
+        const editLinks = document.querySelectorAll('[data-edit-assignment]');
 
-        // Clicking an "Add Assignment" button opens the popup.
+        // Reset the popup back to "Add Assignment" mode.
+        function resetModal() {
+            form.reset();
+            form.removeAttribute('action');
+            modalTitle.textContent = 'Add Assignment';
+            submitButton.textContent = 'Add Assignment';
+        }
+
+        // Clicking an "Add Assignment" button opens the popup in add mode.
         openButtons.forEach((button) => {
-            button.addEventListener('click', () => modal.showModal());
+            button.addEventListener('click', () => {
+                resetModal();
+                modal.showModal();
+            });
+        });
+
+        // Clicking "Edit" fills the popup with that assignment and opens it in edit mode.
+        editLinks.forEach((link) => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                resetModal();
+                form.action = link.dataset.editUrl;
+                form.elements['title'].value = link.dataset.title;
+                form.elements['course'].value = link.dataset.course;
+                form.elements['subject_teacher'].value = link.dataset.subject_teacher;
+                form.elements['description'].value = link.dataset.description;
+                form.elements['due_date'].value = link.dataset.dueDate;
+                modalTitle.textContent = 'Edit Assignment';
+                submitButton.textContent = 'Update Assignment';
+                modal.showModal();
+            });
         });
 
         // The "x" button and the "Cancel" button close the popup.
@@ -269,9 +326,16 @@
             }
         });
 
-        // If the form was sent back with validation errors, open the
-        // popup again so the student can see what to fix.
-        {% if form.errors %}
+        // If this page was reached via an edit URL (GET) or an edit form
+        // came back with errors, open the popup in edit mode.
+        {% if edit_pk %}
+        form.action = "{% url 'assignments:assignment_edit' edit_pk %}";
+        modalTitle.textContent = 'Edit Assignment';
+        submitButton.textContent = 'Update Assignment';
+        modal.showModal();
+        {% elif form.errors %}
+        // If the create form was sent back with validation errors, open
+        // the popup again so the student can see what to fix.
         modal.showModal();
         {% endif %}
     </script>

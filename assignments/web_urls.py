@@ -19,4 +19,9 @@ urlpatterns = [
     # An empty path ("") means "the root of this URL include".
     # The view `assignment_list` handles both GET and POST.
     path("", views.assignment_list, name="assignment_list"),
+
+    # Edit one assignment: /1/edit/
+    path("<int:pk>/edit/", views.assignment_edit, name="assignment_edit"),
+    # Delete one assignment: /1/delete/
+    path("<int:pk>/delete/", views.assignment_delete, name="assignment_delete"),
 ]

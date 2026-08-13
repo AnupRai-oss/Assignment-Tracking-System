@@ -8,7 +8,7 @@ For this page we write a plain FUNCTION-BASED VIEW — the simplest
 kind of view — because we want every concept to be easy to see.
 """
 
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from rest_framework import status, viewsets
 from rest_framework.response import Response
@@ -75,6 +75,41 @@ def assignment_list(request):
     )
 
 
+def assignment_edit(request, pk):
+    """
+    Edit ONE existing assignment.
+
+    POST -> save the changes, then go back to the list page.
+    GET  -> show the list page with the modal open in "Edit" mode.
+    """
+    assignment = get_object_or_404(Assignment, pk=pk)
+
+    if request.method == "POST":
+        form = AssignmentForm(request.POST, instance=assignment)
+        if form.is_valid():
+            form.save()
+            return redirect("assignments:assignment_list")
+    else:
+        form = AssignmentForm(instance=assignment)
+
+    return render(
+        request,
+        "assignments/assignment_list.html",
+        {
+            "form": form,
+            "assignments": Assignment.objects.all(),
+            "edit_pk": pk,  # tells the template to open the modal in edit mode
+        },
+    )
+
+
+def assignment_delete(request, pk):
+    """Delete ONE assignment, then go back to the list page."""
+    assignment = get_object_or_404(Assignment, pk=pk)
+    assignment.delete()
+    return redirect("assignments:assignment_list")
+
+
 # ---------------------------------------------------------------------
 # Below: the existing REST API (Django REST Framework).
 # It is a separate, JSON-based way to talk to the SAME data.
@@ -110,3 +145,21 @@ class AssignmentViewSet(viewsets.GenericViewSet):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # PUT / PATCH /assignments/{id}/
+    def update(self, request, pk=None):
+        """Update an existing assignment. PATCH only changes the given fields."""
+        assignment = self.get_object()
+        partial = request.method == "PATCH"
+        serializer = AssignmentSerializer(assignment, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # DELETE /assignments/{id}/
+    def destroy(self, request, pk=None):
+        """Delete an assignment."""
+        assignment = self.get_object()
+        assignment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
